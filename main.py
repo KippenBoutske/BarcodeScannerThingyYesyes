@@ -155,17 +155,22 @@ def main(page: ft.Page):
                                                 barcode_row_exists = True
                                     if barcode_row_exists is True:
                                         f = open(directory / new_result_file, "x")
-                                        with open(directory / result_file, 'r', newline='') as infile, \
-                                                open(directory / new_result_file, 'w', newline='') as outfile:
-                                            reader = csv.reader(infile, delimiter=";")
-                                            writer = csv.writer(outfile, delimiter=";")
+                                        try:
+                                            with open(directory / result_file, 'r', newline='') as infile, \
+                                                    open(directory / new_result_file, 'w', newline='') as outfile:
+                                                reader = csv.reader(infile, delimiter=";")
+                                                writer = csv.writer(outfile, delimiter=";")
 
-                                            for row in reader:
-                                                if row[0] != current_article_barcode:
-                                                    writer.writerow(row)
-                                            outfile.close()
-                                            infile.close()
-                                            f.close()
+                                                for row in reader:
+                                                    if row[0] != current_article_barcode:
+                                                        writer.writerow(row)
+                                                outfile.close()
+                                                infile.close()
+                                                f.close()
+                                        except:
+                                            console.value = "Sluit excel aub af."
+                                            progress_bar.visible = False
+                                            page.update()
                                         os.remove(directory / result_file)
                                         os.rename(directory / new_result_file, directory / result_file)
                                     omschrijving1, groepcode, groeptekst, inkoop, verkoopprijs, btw = \
@@ -174,35 +179,54 @@ def main(page: ft.Page):
                                     console.value = console.value + current_article_barcode + " - " + omschrijving1 + " | Aantal: " + scanned_barcode.lstrip(
                                         "0") + "\n"
                                     page.update()
-                                    with open(directory / result_file, 'a', newline='') as file:
-                                        writer = csv.writer(file, delimiter=";")
-                                        writer.writerow(
-                                            [current_article_barcode, omschrijving1, groepcode, groeptekst,
-                                             inkoop, verkoopprijs, btw, scanned_barcode.lstrip("0"), "€" + str(
-                                                round(int(scanned_barcode.lstrip("0")) * float(verkoopprijs),
-                                                      2))])
+                                    try:
+                                        with open(directory / result_file, 'a', newline='') as file:
+                                            writer = csv.writer(file, delimiter=";")
+                                            writer.writerow(
+                                                [current_article_barcode, omschrijving1, groepcode, groeptekst,
+                                                 inkoop, verkoopprijs, btw, scanned_barcode.lstrip("0"), "€" + str(
+                                                    round(int(scanned_barcode.lstrip("0")) * float(verkoopprijs),
+                                                          2))])
+                                    except PermissionError:
+                                        console.value = "Sluit excel aub af."
+                                        progress_bar.visible = False
+                                        page.update()
                                 else:
+                                    if os.path.isfile(directory / new_result_file):
+                                        os.remove(directory / new_result_file)
+                                    else:
+                                        pass
                                     barcode_row_exists = False
-                                    with open(directory / result_file, "r", newline='') as result_file2:
-                                        reader = csv.reader(result_file2, delimiter=";")
-                                        for row in reader:
-                                            if row[0] == current_article_barcode:
-                                                barcode_row_exists = True
+                                    try:
+                                        with open(directory / result_file, "r", newline='') as result_file2:
+                                            reader = csv.reader(result_file2, delimiter=";")
+                                            for row in reader:
+                                                if row[0] == current_article_barcode:
+                                                    barcode_row_exists = True
+                                    except PermissionError:
+                                        console.value = "Sluit excel aub af."
+                                        progress_bar.visible = False
+                                        page.update()
                                     aantal = 0
                                     if barcode_row_exists is True:
                                         f = open(directory / new_result_file, "x")
-                                        with open(directory / result_file, 'r', newline='') as infile, \
-                                                open(directory / new_result_file, 'w', newline='') as outfile:
-                                            reader = csv.reader(infile, delimiter=";")
-                                            writer = csv.writer(outfile, delimiter=";")
-                                            for row in reader:
-                                                if row[0] != current_article_barcode:
-                                                    writer.writerow(row)
-                                                else:
-                                                    aantal = float(row[7])
-                                            outfile.close()
-                                            infile.close()
-                                            f.close()
+                                        try:
+                                            with open(directory / result_file, 'r', newline='') as infile, \
+                                                    open(directory / new_result_file, 'w', newline='') as outfile:
+                                                reader = csv.reader(infile, delimiter=";")
+                                                writer = csv.writer(outfile, delimiter=";")
+                                                for row in reader:
+                                                    if row[0] != current_article_barcode:
+                                                        writer.writerow(row)
+                                                    else:
+                                                        aantal = float(row[7])
+                                                outfile.close()
+                                                infile.close()
+                                                f.close()
+                                        except PermissionError:
+                                            console.value = "Sluit excel aub af."
+                                            progress_bar.visible = False
+                                            page.update()
                                         os.remove(directory / result_file)
                                         os.rename(directory / new_result_file, directory / result_file)
                                     omschrijving1, groepcode, groeptekst, inkoop, verkoopprijs, btw = \
@@ -211,13 +235,19 @@ def main(page: ft.Page):
                                     console.value = console.value + current_article_barcode + " - " + omschrijving1 + " | Aantal: " + scanned_barcode.lstrip(
                                         "0") + "\n"
                                     page.update()
-                                    with open(directory / result_file, 'a', newline='') as file:
-                                        writer = csv.writer(file, delimiter=";")
-                                        writer.writerow(
-                                            [current_article_barcode, omschrijving1, groepcode, groeptekst,
-                                             inkoop, verkoopprijs, btw, int(scanned_barcode.lstrip("0")) + int(aantal), "€" + str(
-                                                round(int(scanned_barcode.lstrip("0")) * float(verkoopprijs),
-                                                      2))])
+                                    try:
+                                        with open(directory / result_file, 'a', newline='') as file:
+                                            writer = csv.writer(file, delimiter=";")
+                                            writer.writerow(
+                                                [current_article_barcode, omschrijving1, groepcode, groeptekst,
+                                                 inkoop, verkoopprijs, btw, int(scanned_barcode.lstrip("0")) + int(aantal), "€" + str(
+                                                    round(int(scanned_barcode.lstrip("0")) * float(verkoopprijs),
+                                                          2))])
+                                    except PermissionError:
+                                        console.value = "Sluit excel aub af."
+                                        progress_bar.visible = False
+                                        page.update()
+
 
                             else:
                                 console.value = console.value + "Artikel met barcode: " + current_article_barcode + ", bestaat niet in het kassa systeem\n"
@@ -229,10 +259,16 @@ def main(page: ft.Page):
 
                                 else:
                                     f = open(directory / result_file_onherkend, "x")
-                                    with open(directory / result_file_onherkend, 'a', newline='') as file:
-                                        writer = csv.writer(file, delimiter=";")
-                                        field_onherkend = ["Artikel", "Aantal"]
-                                        writer.writerow(field_onherkend)
+                                    try:
+                                        with open(directory / result_file_onherkend, 'a', newline='') as file:
+                                            writer = csv.writer(file, delimiter=";")
+                                            field_onherkend = ["Artikel", "Aantal"]
+                                            writer.writerow(field_onherkend)
+                                    except PermissionError:
+                                        console.value = "Sluit excel aub af."
+                                        progress_bar.visible = False
+                                        page.update()
+
                                 with open(directory / result_file_onherkend, 'a', newline='') as file:
                                     writer = csv.writer(file, delimiter=";")
                                     writer.writerow([current_article_barcode, scanned_barcode.lstrip("0")])

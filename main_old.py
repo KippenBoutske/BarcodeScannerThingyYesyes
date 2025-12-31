@@ -11,6 +11,14 @@ def main(page: ft.Page):
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
     page.theme = Theme(color_scheme_seed=ft.Colors.GREEN)
 
+    ### Storage
+    if not page.client_storage.contains_key("bestandnaam"):
+        page.client_storage.set("bestandnaam", "result")
+
+    if not page.client_storage.contains_key("switch"):
+        page.client_storage.set("switch", False)
+
+
     selected_file_kassa_path = None
     selected_file_barcode_path = None
 
@@ -31,12 +39,24 @@ def main(page: ft.Page):
         selected_file_kassa_path = e.files[0].path
         selected_file_kassa.update()
 
+    def bestandnaamveranderd(e):
+        page.client_storage.set("bestandnaam", e.control.value.replace(" ", "-"))
+        page.update()
+
+    def switch(e):
+        page.client_storage.set("switch", e.control.value)
+        page.update()
+
+    bestandnaam = ft.TextField(label="Bestandsnaam", value=page.client_storage.get("bestandnaam"), on_change=bestandnaamveranderd)
+
     progress_bar = ft.ProgressBar(width=400, color=ft.Colors.GREEN, bgcolor="#eeeeee")
     progress_bar.visible = False
     kassa_csv_picker_dialog = ft.FilePicker(on_result=kassa_csv_picker)
     barcode_csv_picker_dialog = ft.FilePicker(on_result=barcode_csv_picker)
     selected_file_kassa = ft.Text()
     selected_file_barcode = ft.Text()
+    c1 = ft.Switch(value=page.client_storage.get("switch"), on_change=switch)
+
 
     page.overlay.append(kassa_csv_picker_dialog)
     page.overlay.append(barcode_csv_picker_dialog)
@@ -71,30 +91,31 @@ def main(page: ft.Page):
 
             console.value = "BARCODE SCANNER \n-----------------------------------\n"
 
+            result_file = page.client_storage.get("bestandnaam") + ".csv"
+            new_result_file = "new_" + page.client_storage.get("bestandnaam") + ".csv"
+            result_file_onherkend = page.client_storage.get("bestandnaam") + "-onherkend.csv"
+
             try:
-                if not os.path.isfile(directory / "result.csv"):
-                    console.value = console.value + "*result.csv* Bestand bestaat niet... \n-----------------------------------\n"
+                if not os.path.isfile(directory / result_file):
                     page.update()
-                    f = open(directory / "result.csv", "x")
+                    f = open(directory / result_file, "x")
+                    with open(directory / result_file, 'w', newline='') as file:
+                        writer = csv.writer(file, delimiter=";")
+                        field = ["Artikel", "Omschrijving1", "Groep Code", "Groep tekst", "Inkoop", "Verkoop prijs",
+                                 "BTW", "Aantal", "Verkoop prijs * Aantal"]
+
+                        writer.writerow(field)
                 else:
-                    console.value = console.value + "*result.csv* Bestand bestond en is gewist... \n-----------------------------------\n"
                     page.update()
-                    f = open(directory / "result.csv", "w")
-                    f.truncate()
-                    f.close()
 
             except PermissionError:
                 console.value = (
-                    "'result.csv' kan niet geopend worden. Sluit Excel aub af."
+                    result_file + " kan niet geopend worden. Sluit Excel aub af."
                 )
                 progress_bar.visible = False
                 page.update()
 
-            with open(directory / "result.csv", 'w', newline='') as file:
-                writer = csv.writer(file, delimiter=";")
-                field = ["Artikel", "Omschrijving1", "Groep Code", "Groep tekst", "Inkoop", "Verkoop prijs", "BTW", "Aantal", "Verkoop prijs * Aantal"]
 
-                writer.writerow(field)
 
             kassa_data = {}
             with open(selected_file_kassa_path, "r", newline='', encoding="utf-8") as kassa_file:
@@ -122,31 +143,117 @@ def main(page: ft.Page):
                 for row in barcode_reader:
                     if not row: continue
                     scanned_barcode = row[0].replace('"', '').strip()
-                    if int(scanned_barcode.lstrip("0")) <= 50:
+                    if int(scanned_barcode.lstrip("0")) <= 100:
                         if current_article_barcode is not None:
                             if current_article_barcode in kassa_data:
+                                if page.client_storage.get("switch") is False:
+                                    barcode_row_exists = False
+                                    with open(directory / result_file, "r", newline='') as result_file2:
+                                        reader = csv.reader(result_file2, delimiter=";")
+                                        for row in reader:
+                                            if row[0] == current_article_barcode:
+                                                barcode_row_exists = True
+                                    if barcode_row_exists is True:
+                                        f = open(directory / new_result_file, "x")
+                                        with open(directory / result_file, 'r', newline='') as infile, \
+                                                open(directory / new_result_file, 'w', newline='') as outfile:
+                                            reader = csv.reader(infile, delimiter=";")
+                                            writer = csv.writer(outfile, delimiter=";")
 
-                                omschrijving1, groepcode, groeptekst, inkoop, verkoopprijs, btw = kassa_data[current_article_barcode]
+                                            for row in reader:
+                                                if row[0] != current_article_barcode:
+                                                    writer.writerow(row)
+                                            outfile.close()
+                                            infile.close()
+                                            f.close()
+                                        os.remove(directory / result_file)
+                                        os.rename(directory / new_result_file, directory / result_file)
+                                    omschrijving1, groepcode, groeptekst, inkoop, verkoopprijs, btw = \
+                                        kassa_data[current_article_barcode]
 
-                                console.value = console.value + current_article_barcode + " - " + omschrijving1 + " | Aantal: " + scanned_barcode.lstrip("0") + "\n"
-                                page.update()
-                                with open(directory / "result.csv", 'a', newline='') as file:
-                                    writer = csv.writer(file, delimiter=";")
-                                    writer.writerow([current_article_barcode, omschrijving1, groepcode, groeptekst, inkoop, verkoopprijs, btw, scanned_barcode.lstrip("0"), "€" + str(round(int(scanned_barcode.lstrip("0"))*float(verkoopprijs), 2))])
+                                    console.value = console.value + current_article_barcode + " - " + omschrijving1 + " | Aantal: " + scanned_barcode.lstrip(
+                                        "0") + "\n"
+                                    page.update()
+                                    with open(directory / result_file, 'a', newline='') as file:
+                                        writer = csv.writer(file, delimiter=";")
+                                        writer.writerow(
+                                            [current_article_barcode, omschrijving1, groepcode, groeptekst,
+                                             inkoop, verkoopprijs, btw, scanned_barcode.lstrip("0"), "€" + str(
+                                                round(int(scanned_barcode.lstrip("0")) * float(verkoopprijs),
+                                                      2))])
+                                else:
+                                    barcode_row_exists = False
+                                    with open(directory / result_file, "r", newline='') as result_file2:
+                                        reader = csv.reader(result_file2, delimiter=";")
+                                        for row in reader:
+                                            if row[0] == current_article_barcode:
+                                                barcode_row_exists = True
+                                    aantal = 0
+                                    if barcode_row_exists is True:
+                                        f = open(directory / new_result_file, "x")
+                                        with open(directory / result_file, 'r', newline='') as infile, \
+                                                open(directory / new_result_file, 'w', newline='') as outfile:
+                                            reader = csv.reader(infile, delimiter=";")
+                                            writer = csv.writer(outfile, delimiter=";")
+                                            for row in reader:
+                                                if row[0] != current_article_barcode:
+                                                    writer.writerow(row)
+                                                else:
+                                                    aantal = float(row[7])
+                                            outfile.close()
+                                            infile.close()
+                                            f.close()
+                                        os.remove(directory / result_file)
+                                        os.rename(directory / new_result_file, directory / result_file)
+                                    omschrijving1, groepcode, groeptekst, inkoop, verkoopprijs, btw = \
+                                        kassa_data[current_article_barcode]
+
+                                    console.value = console.value + current_article_barcode + " - " + omschrijving1 + " | Aantal: " + scanned_barcode.lstrip(
+                                        "0") + "\n"
+                                    page.update()
+                                    with open(directory / result_file, 'a', newline='') as file:
+                                        writer = csv.writer(file, delimiter=";")
+                                        writer.writerow(
+                                            [current_article_barcode, omschrijving1, groepcode, groeptekst,
+                                             inkoop, verkoopprijs, btw, int(scanned_barcode.lstrip("0")) + int(aantal), "€" + str(
+                                                round(int(scanned_barcode.lstrip("0")) * float(verkoopprijs),
+                                                      2))])
+
                             else:
-                                console.value = console.value + "Artikel bestaat niet in het kassa systeem\n"
+                                console.value = console.value + "Artikel met barcode: " + current_article_barcode + ", bestaat niet in het kassa systeem\n"
 
+                                my_file = Path(directory / result_file_onherkend)
+                                if my_file.is_file():
+
+                                    pass
+
+                                else:
+                                    f = open(directory / result_file_onherkend, "x")
+                                    with open(directory / result_file_onherkend, 'a', newline='') as file:
+                                        writer = csv.writer(file, delimiter=";")
+                                        field_onherkend = ["Artikel", "Aantal"]
+                                        writer.writerow(field_onherkend)
+                                with open(directory / result_file_onherkend, 'a', newline='') as file:
+                                    writer = csv.writer(file, delimiter=";")
+                                    writer.writerow([current_article_barcode, scanned_barcode.lstrip("0")])
                                 page.update()
                             current_article_barcode = None
                     else:
                         current_article_barcode = scanned_barcode
-            console.value = console.value + f"-----------------------------------\nSuccesvol gelukt! Locatie bestand: {directory / 'result.csv'}"
+            console.value = console.value + f"-----------------------------------\nSuccesvol gelukt! Locatie bestand: {directory / result_file}"
             progress_bar.visible = False
             page.update()
 
 
 
     page.add(
+        ft.Row(
+            [
+                bestandnaam
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+        ),
+
         ft.Row(
             [
                 ft.Text("Barcode Bestand:"),
@@ -177,6 +284,14 @@ def main(page: ft.Page):
         ],
         alignment=ft.MainAxisAlignment.CENTER,
     ),
+        ft.Row(
+            [
+                ft.Text("Vervangen"),
+                c1,
+                ft.Text("Toevoegen"),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+        ),
         ft.Row(
             [
                 ft.ElevatedButton(
